@@ -1,0 +1,41 @@
+	addi  $s0, $zero, 5     ; R16==R0+5 == 5
+	andi  $s1, $zero, 0     ; R17==R0&3 == 0
+	ori   $s1, $s1, 3       ; R17==3
+	add   $s2, $s0, $s1     ; R18==8
+	sub   $s3, $s0, $s1     ; R19==2
+	and   $s4, $s0, $s1     ; R20==1
+	or    $s5, $s0, $s1     ; R21==7
+	srl   $s0, $s0, 2       ; R16==1
+	sll   $s0, $s0, 31      ; R16==32'h8000000
+	sra   $s0, $s0, 31      ; R16==32'hffffffff
+	sw    $s2, 0($zero)
+	lw    $s3, 0($zero)     ; R19==R18 ==8
+	subi  $s2, $s2, 1       ; R18==7
+JUMP:   beq   $s2, $s3, 2       ; 1st. no jumping, 2nd.jump to the line of bne
+        addi  $s2, $s2, 1       ; execut at the 1st time
+        j     JUMP              ; back to beq
+JAL:    bne   $s2, $s3, 2       ; 1st. no jumping, 2nd. jump to the line of jr
+        subi  $s2, $s3, 1  
+        j     JAL               ; jump to the line of bne
+
+
+
+0x20100005
+0x30110000
+0x36310003
+0x02119020
+0x02119822
+0x0211a024
+0x0211a825
+0x00108082
+0x001087c0
+0x001087c3
+0xac120000	//a:sw
+0x8c130000	//b:lw
+0x2252ffff	//c:subi
+0x12530002	//d:beq
+0x22520001	//e:addi
+0x0800000d	//f:jmp 
+0x16530002	//10:bne
+0x2272ffff
+0x08000010
