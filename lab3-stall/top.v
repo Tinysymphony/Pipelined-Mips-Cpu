@@ -64,7 +64,7 @@ output [7:0] LED
 	wire [14:0]ctrl_2in,ctrl_2out;
 	
 	wire [4:0]regw_addr_exe, regw_addr_mem, regw_addr_wb;
-	wire wb_wen_exe, wb_wen_mem, wb_wen_wb;
+	wire wb_wen, wb_wen_exe, wb_wen_mem, wb_wen_wb;
 
 
 	wire [31:0]instr,memDataOut;
@@ -73,7 +73,6 @@ output [7:0] LED
 	wire [31:0]instr_1in,instr_1out;
 	wire [31:0]pc_1in,pc_1out;
 	wire [31:0]pc_in,pc_out;
-	assign instr_1in=instr;
 	IF if_stage(
 		.en(if_en),
 		.clk(CLK),
@@ -83,15 +82,16 @@ output [7:0] LED
 		.valid(if_valid)
 	);
 	
-	singlePcPlus pcplus0(pc_out,pc_1in);
+	singlePcPlus pcplus0(pc_out,pc_1in); 
 	
-	//instr_rom
+	//instr_rom  //tmp ~clk
 	IP ip0(
-		.clka(CLK),
+		.clka(~CLK),
 		.addra(pc_out[9:0]),
 		.douta(instr)
 	);
 	
+	assign instr_1in=instr;
 	ID id_stage(
 		.en(id_en),
 		.clk(CLK),
@@ -206,6 +206,7 @@ output [7:0] LED
 	end
 
 	//EXE TinyPipeLine
+	wire mem_wen_exe;
 	EXE exe_stage(
 		.en(exe_en),
 		.clk(CLK),
@@ -230,7 +231,9 @@ output [7:0] LED
 		.regw_addr_out(regw_addr_exe),
 		.shift_out(shift_2out),
 		.wb_wen_in(wb_wen),
-		.wb_wen_out(wb_wen_exe)
+		.wb_wen_out(wb_wen_exe),
+		.mem_wen_in(mem_wen),
+		.mem_wen_out(mem_wen_exe)
 	);
 
 	wire [31:0]aluA,aluB,aluOut;
@@ -262,6 +265,7 @@ output [7:0] LED
 	assign jmp_pc={pc_2out[31:26],instr_2out[25:0]};
 
 	//MEM TinyPipeLine
+	wire mem_wen_mem;
 	MEM mem_stage(
 		.en(mem_en),
 		.clk(CLK),
@@ -285,14 +289,17 @@ output [7:0] LED
 		.ctrl_in(ctrl_2out),
 		.ctrl_out(ctrl_3out),
 		.wb_wen_in(wb_wen_exe),
-		.wb_wen_out(wb_wen_mem)
+		.wb_wen_out(wb_wen_mem),
+		.mem_wen_in(mem_wen_exe),
+		.mem_wen_out(mem_wen_mem)
 	);
 	
 	//data_ram
 	wire memWrite;
 	wire [31:0]memAddr,memDataIn;
 	assign memDataIn=alu_3out;
-	assign memWrite=ctrl_3out[3];
+	//assign memWrite=ctrl_3out[3];
+	assign memWrite=mem_wen_mem;
 	assign memAddr=opb_3out;
 	DATA data0(
 		.clka(CLK),

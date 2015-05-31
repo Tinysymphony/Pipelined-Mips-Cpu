@@ -151,7 +151,28 @@ module pipeController(
 						rs_used = 1;
 						rt_used = 1;
 					end
-					
+					R_FUNC_SRA: begin
+						exe_alu_oper = EXE_ALU_SRA;
+						wb_addr_src = WB_ADDR_RD;
+						wb_data_src = WB_DATA_ALU;
+						wb_wen = 1;
+						rs_used = 1;
+						rt_used = 1;
+					end
+					R_FUNC_SLL: begin
+						exe_alu_oper = EXE_ALU_SLL;
+						wb_addr_src = WB_ADDR_RD;
+						wb_data_src = WB_DATA_ALU;
+						wb_wen = 1;
+						rt_used = 1;
+					end
+					R_FUNC_SRL: begin
+						exe_alu_oper = EXE_ALU_SRL;
+						wb_addr_src = WB_ADDR_RD;
+						wb_data_src = WB_DATA_ALU;
+						wb_wen = 1;
+						rt_used = 1;
+					end
 					default: begin
 						unrecognized = 1;
 					end
@@ -222,6 +243,19 @@ module pipeController(
 		endcase
 	end
 
+	initial begin 
+		if_rst = 0;
+		if_en = 1;
+		id_rst = 0;
+		id_en = 1;
+		exe_rst = 0;
+		exe_en = 1;
+		mem_rst = 0;
+		mem_en = 1;
+		wb_rst = 0;
+		wb_en = 1;
+	end
+	
 	always @(*) begin
 		if_rst = 0;
 		if_en = 1;

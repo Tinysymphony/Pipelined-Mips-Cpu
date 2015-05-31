@@ -33,7 +33,8 @@ output reg [31:0]alu_out
 			4'b0110: alu_out=opa-opb;
 			4'b0011: alu_out=opb<<sa;
 			4'b0100: alu_out=opb>>sa;
-			4'b0101: alu_out=$signed(opa)>>>opb;
+			//4'b0101: alu_out=$signed(opa)>>>opb;
+			4'b0101: alu_out=$signed(opb)>>>sa;
 			4'b0111: alu_out=(opa<opb)?1:0;
 			4'b1000: alu_out=~(opa|opb);
 			default: alu_out=0;

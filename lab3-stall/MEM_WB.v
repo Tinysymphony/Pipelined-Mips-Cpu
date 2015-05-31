@@ -38,7 +38,7 @@ input wire valid_in
 
 	initial begin valid=0; ctrl_out=0; alu_res_out=0; memdata_out=0; regw_addr_out=0; wb_wen_out=0;end
 	
-	always @(posedge clk or posedge rst) begin
+	always @(posedge clk) begin
 		if(rst) begin
 			ctrl_out=0;
 			alu_res_out=0;

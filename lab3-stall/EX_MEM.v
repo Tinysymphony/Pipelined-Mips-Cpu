@@ -33,16 +33,19 @@ output reg[7:0]ctrl_out,
 input wire wb_wen_in,
 output reg wb_wen_out,
 input wire valid_in,
-output reg valid
+output reg valid,
+input wire mem_wen_in,
+output reg mem_wen_out
     );
 	
 	initial begin 
 		zero_out=0; ctrl_out=0; opb_out=0; regw_addr_out=0; 
 		alu_res_out=0; jmp_pc_out=0; im_pc_out=0; pc_out=0;
 		wb_wen_out=0; valid=0;
+		mem_wen_out=0;
 	end
 	
-	always @(posedge clk or posedge rst)begin
+	always @(posedge clk)begin
 		if(rst)begin
 			valid=0;
 			pc_out=0;
@@ -54,6 +57,7 @@ output reg valid
 			zero_out=0;
 			regw_addr_out=0;
 			wb_wen_out=0;
+			mem_wen_out=0;
 		end
 		else if(en) begin
 			valid=valid_in;
@@ -66,6 +70,7 @@ output reg valid
 			regw_addr_out=regw_addr_in;
 			zero_out=zero_in;
 			wb_wen_out=wb_wen_in;
+			mem_wen_out=mem_wen_in;
 		end
 	end
 	

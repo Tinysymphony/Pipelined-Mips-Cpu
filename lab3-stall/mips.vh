@@ -80,7 +80,7 @@ localparam  // bit 31:26 for instruction type
 	//I_FUNC_TNEI     = 5'b01110,
 	//I_FUNC_BLTZAL   = 5'b10000,
 	//I_FUNC_BGEZAL   = 5'b10001,
-	//INST_J          = 6'b000010,
+	INST_J          = 6'b000010,
 	//INST_JAL        = 6'b000011,
 	INST_BEQ        = 6'b000100,
 	INST_BNE        = 6'b000101,
