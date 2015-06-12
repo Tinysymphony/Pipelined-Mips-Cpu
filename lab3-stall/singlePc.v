@@ -27,7 +27,7 @@ module IF(
 	output reg valid
     );
 
-	initial begin opc= 0; end
+	initial begin opc= 32'hFFFFFFFF; end
 
 	always @(posedge clk) begin
 		if(rst) begin

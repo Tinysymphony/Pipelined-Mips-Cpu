@@ -182,11 +182,10 @@ output [7:0] LED
 		reg_stall = AFromExe || BFromExe || AFromMem || BFromMem;		
 	end
 
-	wire [31:0]sign_ext_2in,sign_ext_2out,zero_ext_2in,zero_ext_2out,opa_2in,opa_2out,opb_2in,opb_2out;
+	wire [31:0]sign_ext_2in,sign_ext_2out,zero_ext_2in,zero_ext_2out;
 	wire [31:0]pc_2out,instr_2out;
 	wire [4:0]shift_2out;
-	assign opa_2in=regOut1;
-	assign opb_2in=regOut2;
+	wire [31:0]opa_id_exe,opb_id_exe;
 	
 	zeroExtend zero0(instr_1out[15:0],zero_ext_2in);
 	signExtend sign0(instr_1out[15:0],sign_ext_2in);
@@ -194,16 +193,19 @@ output [7:0] LED
 	wire [31:0]data_imm;
 	assign data_imm = imm_ext ? sign_ext_2in : zero_ext_2in; 
 	
-	reg [31:0]opa_id, opb_id;
-	
+	reg [31:0]opa_id, opb_id, data_rt;
+	initial begin opa_id=0; opb_id=0; end
 	always @(*) begin
 		opa_id = regOut1;
 		opb_id = regOut2;
+		data_rt = regOut2;
 		case (exe_b_src)
 			EXE_B_RT: opb_id = regOut2;
 			EXE_B_IMM: opb_id = data_imm;
 		endcase
 	end
+	
+	wire [31:0] data_rt_exe;
 
 	//EXE TinyPipeLine
 	wire mem_wen_exe;
@@ -219,11 +221,13 @@ output [7:0] LED
 		.sign_ext_out(sign_ext_2out),
 		.zero_ext_in(zero_ext_2in),
 		.zero_ext_out(zero_ext_2out),
-		.opa_in(opa_2in),
-		.opa_out(opa_2out),
-		.opb_in(opb_2in),
-		.opb_out(opb_2out),
+		.opa_in(opa_id),
+		.opa_out(opa_id_exe),
+		.opb_in(opb_id),
+		.opb_out(opb_id_exe),
 		.ctrl_in(ctrl_2in),
+		.data_rt_in(data_rt),
+		.data_rt_out(data_rt_exe),
 		.ctrl_out(ctrl_2out),
 		.instr_in(instr_1out),
 		.instr_out(instr_2out),
@@ -241,9 +245,9 @@ output [7:0] LED
 	wire [4:0]sa;
 	wire zero;
 	assign sa=shift_2out;
-	assign aluA=opa_2out;
-
-	mux32_2 alub0(opb_2out,sign_ext_2out,zero_ext_2out,ctrl_2out[1],ctrl_2out[8],aluB);
+	assign aluA=opa_id_exe;
+	assign aluB=opb_id_exe;
+	//mux32_2 alub0(opb_2out,sign_ext_2out,zero_ext_2out,ctrl_2out[1],ctrl_2out[8],aluB);
 
 	aluC alc0(ctrl_2out[13:9],instr_2out[5:0],aluCtrl);
 	
@@ -257,13 +261,14 @@ output [7:0] LED
 		.alu_out(aluOut)
 	);
 
-	wire [31:0]jmp_pc,opb_3out,alu_3out,pc_3out,im_pc_3out,jmp_pc_3out;
+	wire [31:0]jmp_pc,opb_id_mem,alu_3out,pc_3out,im_pc_3out,jmp_pc_3out;
 	wire [7:0]ctrl_3out;
 	wire [31:0]im_pc;
 	wire zero_3out;
 	assign im_pc=sign_ext_2out+pc_2out;
 	assign jmp_pc={pc_2out[31:26],instr_2out[25:0]};
 
+	wire [31:0] data_rt_mem;
 	//MEM TinyPipeLine
 	wire mem_wen_mem;
 	MEM mem_stage(
@@ -278,8 +283,10 @@ output [7:0] LED
 		.zero_out(zero_3out),
 		.alu_res_in(aluOut),
 		.alu_res_out(alu_3out),
-		.opb_in(opb_2out),
-		.opb_out(opb_3out),
+		.opb_in(opb_id_exe),
+		.opb_out(opb_id_mem),
+		.data_rt_in(data_rt_exe),
+		.data_rt_out(data_rt_mem),
 		.regw_addr_in(regw_addr_exe),
 		.regw_addr_out(regw_addr_mem),
 		.im_pc_in(im_pc),
@@ -294,15 +301,22 @@ output [7:0] LED
 		.mem_wen_out(mem_wen_mem)
 	);
 	
+	//reg 
+	//always @(*) begin
+		
+	//end
+	
 	//data_ram
 	wire memWrite;
 	wire [31:0]memAddr,memDataIn;
-	assign memDataIn=alu_3out;
-	//assign memWrite=ctrl_3out[3];
+	//assign memDataIn=alu_3out;
+	assign memDataIn=data_rt_mem;
 	assign memWrite=mem_wen_mem;
-	assign memAddr=opb_3out;
+	//assign memAddr=opb_id_mem;	
+	assign memAddr=alu_3out;
+
 	DATA data0(
-		.clka(CLK),
+		.clka(~CLK),
 		.addra(memAddr[9:0]),
 		.wea(memWrite),
 		.dina(memDataIn),
