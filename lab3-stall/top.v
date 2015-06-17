@@ -28,9 +28,10 @@ output [7:0] LED
 	`include "mips.vh"
 	//anti_jitter & inp	ut signals
 	wire BTN0Out,BTN1Out,BTN2Out,BTN3Out,RST,CLK,REGCHOOSE;
+	
 	//anti_jitter button0(CCLK, BTN0, BTN0Out); 	//RESET
 	//anti_jitter button1(CCLK, BTN1, BTN1Out);	//CLK
-	///anti_jitter button2(CCLK, BTN2, BTN2Out);	//CHOOSE REGISTER
+	//anti_jitter button2(CCLK, BTN2, BTN2Out);	//CHOOSE REGISTER
 	//anti_jitter button3(CCLK, BTN3, BTN3Out);	//BAKCUP
 	
 	assign BTN0Out=BTN0;
@@ -43,6 +44,8 @@ output [7:0] LED
 	assign RST=BTN0Out;
 	assign CLK=BTN1Out;
 	assign REGCHOOSE=BTN2Out;
+	
+	wire jumpSignal,branchSignal,bne,beq;
 	
 	//Control signals' defination
 	wire if_valid,id_valid,exe_valid,mem_valid,wb_valid;
@@ -60,12 +63,13 @@ output [7:0] LED
 	wire rd_used;
 	wire unrecognized;
 	reg reg_stall;
+	reg single_stall;
+	wire [7:0] op_type_if, op_type_id, op_type_exe, op_type_mem, op_type_wb;
 	
 	wire [14:0]ctrl_2in,ctrl_2out;
 	
 	wire [4:0]regw_addr_exe, regw_addr_mem, regw_addr_wb;
 	wire wb_wen, wb_wen_exe, wb_wen_mem, wb_wen_wb;
-
 
 	wire [31:0]instr,memDataOut;
 	
@@ -73,23 +77,37 @@ output [7:0] LED
 	wire [31:0]instr_1in,instr_1out;
 	wire [31:0]pc_1in,pc_1out;
 	wire [31:0]pc_in,pc_out;
+	
+	reg [31:0]pc_tmp=0;
+	wire ip_rst,ip_en;
+	reg branch_stall;
+	
+	//always @(posedge CLK)begin 
+	//	if(ip_rst)
+	//		pc_tmp=0;
+	//	else if(ip_en)
+	//		pc_tmp=pc_in;
+	//end
+	
 	IF if_stage(
 		.en(if_en),
 		.clk(CLK),
 		.rst(if_rst),
-		.ipc(pc_in),
+		.ipc(pc_in), /////
 		.opc(pc_out),
 		.valid(if_valid)
 	);
 	
 	singlePcPlus pcplus0(pc_out,pc_1in); 
-	
+
 	//instr_rom  //tmp ~clk
 	IP ip0(
 		.clka(~CLK),
 		.addra(pc_out[9:0]),
 		.douta(instr)
 	);
+	
+	instrType type0(instr, op_type_if);
 	
 	assign instr_1in=instr;
 	ID id_stage(
@@ -137,8 +155,12 @@ output [7:0] LED
 		.mem_valid(mem_valid),
 		.wb_rst(wb_rst),
 		.wb_en(wb_en),
-		.wb_valid(wb_valid)
-	
+		.wb_valid(wb_valid),
+		.branch_stall(branch_stall),
+		.ip_rst(ip_rst),
+		.ip_en(ip_en),
+		.single_stall(single_stall),
+		.op_type(op_type_id)
 	);
 	
 	//regFile
@@ -171,15 +193,17 @@ output [7:0] LED
 	end
 	
 	//stall
-	reg AFromExe, BFromExe, AFromMem, BFromMem;
-	initial begin reg_stall=0; end
+	reg AFromExe, BFromExe, AFromMem, BFromMem, SFromAddr;
+	initial begin reg_stall=0; branch_stall=0; single_stall=0; end
 	always @(*) begin
 		reg_stall = 0;
 		AFromExe = rs_used && (reg1 != 0) && (regw_addr_exe == reg1) && wb_wen_exe;
 		BFromExe = rt_used && (reg2 != 0) && (regw_addr_exe == reg2) && wb_wen_exe;
 		AFromMem = rs_used && (reg1 != 0) && (regw_addr_mem == reg1) && wb_wen_mem;
-		BFromMem = rt_used && (reg2 != 0) && (regw_addr_mem == reg2) && wb_wen_mem; 
-		reg_stall = AFromExe || BFromExe || AFromMem || BFromMem;		
+		BFromMem = rt_used && (reg2 != 0) && (regw_addr_mem == reg2) && wb_wen_mem;
+		reg_stall = AFromExe || BFromExe || AFromMem || BFromMem ;	
+		single_stall = AFromMem || BFromMem;
+		branch_stall = branchSignal; /////
 	end
 
 	wire [31:0]sign_ext_2in,sign_ext_2out,zero_ext_2in,zero_ext_2out;
@@ -237,7 +261,9 @@ output [7:0] LED
 		.wb_wen_in(wb_wen),
 		.wb_wen_out(wb_wen_exe),
 		.mem_wen_in(mem_wen),
-		.mem_wen_out(mem_wen_exe)
+		.mem_wen_out(mem_wen_exe),
+		.op_type_in(op_type_id),
+		.op_type_out(op_type_exe)
 	);
 
 	wire [31:0]aluA,aluB,aluOut;
@@ -298,7 +324,9 @@ output [7:0] LED
 		.wb_wen_in(wb_wen_exe),
 		.wb_wen_out(wb_wen_mem),
 		.mem_wen_in(mem_wen_exe),
-		.mem_wen_out(mem_wen_mem)
+		.mem_wen_out(mem_wen_mem),
+		.op_type_in(op_type_exe),
+		.op_type_out(op_type_mem)
 	);
 	
 	//reg 
@@ -341,12 +369,13 @@ output [7:0] LED
 		.memdata_in(memdata_4in),
 		.memdata_out(memdata_4out),
 		.wb_wen_in(wb_wen_mem),
-		.wb_wen_out(wb_wen_wb)
+		.wb_wen_out(wb_wen_wb),
+		.op_type_in(op_type_mem),
+		.op_type_out(op_type_wb)
 	);
 	assign regAddr = regw_addr_wb;
 	
 	wire [31:0]tmpPc;
-	wire jumpSignal,branchSignal,bne,beq;
 	assign jumpSignal=ctrl_3out[6];
 	assign bne=ctrl_3out[5]&&~zero_3out;
 	assign beq=ctrl_3out[4]&&zero_3out;
@@ -359,6 +388,17 @@ output [7:0] LED
 	//refresh the screen
 	wire clk_refresh;
 	clock clock2 (CCLK, 2000000, clk_refresh);	
+	
+	reg [7:0]clock_count=0;
+	
+	always@(posedge CLK)begin
+		if(RST)begin 
+			clock_count=0;
+		end
+		else begin
+			clock_count=clock_count+1;
+		end
+	end
 	
 	wire [3:0]temp=0;
 	//display
@@ -384,52 +424,68 @@ output [7:0] LED
 	assign LCDE=elcd;
 
 	//wire [255:0]strdata = "PC:0000-00000000Register00000000";
+
 	wire [255:0]strdata;
-	assign strdata[255:240]="FD";
-	
-	itoa instruction00(CCLK, pc_1in[7:4], strdata[239:232]);
-	itoa instruction01(CCLK, pc_1in[3:0], strdata[231:224]);
-	
-	assign strdata[223:216]="-";
-	
-	itoa instruction02(CCLK, pc_1out[7:4], strdata[215:208]);
-	itoa instruction03(CCLK, pc_1out[3:0], strdata[207:200]);
 
-	assign strdata[199:192]="-";
-	//assign strdata[127:64]="Register";
-	
-	assign strdata[127:112]="EM";
-	
-	itoa instruction04(CCLK, pc_2out[7:4], strdata[111:104]);
-	itoa instruction05(CCLK, pc_2out[3:0], strdata[103:96]);
+	itoa instruction7(CCLK, instr[31:28], strdata[255:248]);
+	itoa instruction6(CCLK, instr[27:24], strdata[247:240]);
+	itoa instruction5(CCLK, instr[23:20], strdata[239:232]);
+	itoa instruction4(CCLK, instr[19:16], strdata[231:224]);
+	itoa instruction3(CCLK, instr[15:12], strdata[223:216]);
+	itoa instruction2(CCLK, instr[11:8], strdata[215:208]);
+	itoa instruction1(CCLK, instr[7:4], strdata[207:200]);
+	itoa instruction0(CCLK, instr[3:0], strdata[199:192]);
 
-	assign strdata[95:88]="-";
+	assign strdata[191:184]=" ";
+	
+	//clock count
+	itoa count1(CCLK, clock_count[7:4], strdata[183:176]);
+	itoa count2(CCLK, clock_count[3:0], strdata[175:168]);
 
-	itoa instruction06(CCLK, pc_3out[7:4], strdata[87:80]);
-	itoa instruction07(CCLK, pc_3out[3:0], strdata[79:72]);
+	//space
+	assign strdata[167:160]=" ";
+
+	//reg content
+	itoa register3(CCLK, regOut3[15:12], strdata[159:152]);
+	itoa register2(CCLK, regOut3[11:8], strdata[151:144]);
+	itoa register1(CCLK, regOut3[7:4], strdata[143:136]);
+	itoa register0(CCLK, regOut3[3:0], strdata[135:128]);
+
+	assign strdata[127:120]="F";
+	itoa op_if1(CCLK, op_type_if[7:4], strdata[119:112]);
+	itoa op_if0(CCLK, op_type_if[3:0], strdata[111:104]);
 
 	
-	assign strdata[71:64]="-";
-	//INSTRUCTION 191:128
-	itoa instruction7(CCLK, instr[31:28], strdata[191:184]);
-	itoa instruction6(CCLK, instr[27:24], strdata[183:176]);
-	itoa instruction5(CCLK, instr[23:20], strdata[175:168]);
-	itoa instruction4(CCLK, instr[19:16], strdata[167:160]);
-	itoa instruction3(CCLK, instr[15:12], strdata[159:152]);
-	itoa instruction2(CCLK, instr[11:8], strdata[151:144]);
-	itoa instruction1(CCLK, instr[7:4], strdata[143:136]);
-	itoa instruction0(CCLK, instr[3:0], strdata[135:128]);
+	assign strdata[103:96]="D";
+	itoa op_id1(CCLK, op_type_id[7:4], strdata[95:88]);
+	itoa op_id0(CCLK, op_type_id[3:0], strdata[87:80]);
+	
+	assign strdata[79:72]="E";
+	itoa op_exe1(CCLK, op_type_exe[7:4], strdata[71:64]);
+	itoa op_exe0(CCLK, op_type_exe[3:0], strdata[63:56]);
+	
+	assign strdata[55:48]="M";
+	itoa op_mem1(CCLK, op_type_mem[7:4], strdata[47:40]);
+	itoa op_mem0(CCLK, op_type_mem[3:0], strdata[39:32]);
+	
+	assign strdata[31:24]="W";
+	itoa op_wb1(CCLK, op_type_wb[7:4], strdata[23:16]);
+	itoa op_wb0(CCLK, op_type_wb[3:0], strdata[15:8]);
+	
+	assign strdata[7:0]="+";
+
 	//PC COUNT 231:200
 	
 	//REGISTER VALUE
-	itoa register7(CCLK, regOut3[31:28],strdata[63:56]);
-	itoa register6(CCLK, regOut3[27:24],strdata[55:48]);
-	itoa register5(CCLK, regOut3[23:20],strdata[47:40]);
-	itoa register4(CCLK, regOut3[19:16],strdata[39:32]);
-	itoa register3(CCLK, regOut3[15:12],strdata[31:24]);
-	itoa register2(CCLK, regOut3[11:8],strdata[23:16]);
-	itoa register1(CCLK, regOut3[7:4],strdata[15:8]);
-	itoa register0(CCLK, regOut3[3:0],strdata[7:0]);
+	// itoa register7(CCLK, regOut3[31:28],strdata[63:56]);
+	// itoa register6(CCLK, regOut3[27:24],strdata[55:48]);
+	// itoa register5(CCLK, regOut3[23:20],strdata[47:40]);
+	// itoa register4(CCLK, regOut3[19:16],strdata[39:32]);
+	// itoa register3(CCLK, regOut3[15:12],strdata[31:24]);
+	// itoa register2(CCLK, regOut3[11:8],strdata[23:16]);
+	// itoa register1(CCLK, regOut3[7:4],strdata[15:8]);
+	// itoa register0(CCLK, regOut3[3:0],strdata[7:0]);
+	
 	//DISPLAY MODULE
 	display SHOW(CCLK, clk_refresh, strdata, rslcd, rwlcd, elcd, lcdd);          
 	

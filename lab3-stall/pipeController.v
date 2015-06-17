@@ -40,6 +40,11 @@ module pipeController(
 	output reg unrecognized,  // whether current instruction can not be recognized
 	// pipeline control
 	input wire reg_stall,  // stall signal when LW instruction followed by an related R instruction
+	
+	input wire branch_stall,
+	output reg ip_rst,
+	output reg ip_en,
+	
 	output reg if_rst,  // stage reset signal
 	output reg if_en,  // stage enable signal
 	
@@ -58,8 +63,11 @@ module pipeController(
 	input wire mem_valid,
 	output reg wb_rst,
 	output reg wb_en,
+
+	input wire wb_valid,
 	
-	input wire wb_valid
+	input wire single_stall,
+	output reg [7:0] op_type
 );
 
 	`include "mips.vh"
@@ -108,6 +116,7 @@ module pipeController(
 		rs_used = 0;
 		rt_used = 0;
 		unrecognized = 0;
+		op_type=0;
 		case(instr[31:26]) 
 			INST_R: begin
 				case(instr[5:0])
@@ -118,6 +127,7 @@ module pipeController(
 						wb_wen = 1;
 						rs_used = 1;
 						rt_used = 1;
+						op_type = 1;
 					end
 					R_FUNC_SUB: begin
 						exe_alu_oper = EXE_ALU_SUB;
@@ -126,6 +136,7 @@ module pipeController(
 						wb_wen = 1;
 						rs_used = 1;
 						rt_used = 1;
+						op_type = 2;
 					end
 					R_FUNC_AND: begin
 						exe_alu_oper = EXE_ALU_AND;
@@ -134,6 +145,7 @@ module pipeController(
 						wb_wen = 1;
 						rs_used = 1;
 						rt_used = 1;
+						op_type = 3;
 					end
 					R_FUNC_OR: begin
 						exe_alu_oper = EXE_ALU_OR;
@@ -142,6 +154,7 @@ module pipeController(
 						wb_wen = 1;
 						rs_used = 1;
 						rt_used = 1;
+						op_type = 4;
 					end
 					R_FUNC_XOR: begin
 						exe_alu_oper = EXE_ALU_XOR;
@@ -150,6 +163,7 @@ module pipeController(
 						wb_wen = 1;
 						rs_used = 1;
 						rt_used = 1;
+						op_type = 0;
 					end
 					R_FUNC_SRA: begin
 						exe_alu_oper = EXE_ALU_SRA;
@@ -158,6 +172,7 @@ module pipeController(
 						wb_wen = 1;
 						rs_used = 1;
 						rt_used = 1;
+						op_type = 0;
 					end
 					R_FUNC_SLL: begin
 						exe_alu_oper = EXE_ALU_SLL;
@@ -165,6 +180,7 @@ module pipeController(
 						wb_data_src = WB_DATA_ALU;
 						wb_wen = 1;
 						rt_used = 1;
+						op_type = 0;
 					end
 					R_FUNC_SRL: begin
 						exe_alu_oper = EXE_ALU_SRL;
@@ -172,6 +188,7 @@ module pipeController(
 						wb_data_src = WB_DATA_ALU;
 						wb_wen = 1;
 						rt_used = 1;
+						op_type = 0;
 					end
 					default: begin
 						unrecognized = 1;
@@ -184,6 +201,7 @@ module pipeController(
 				is_branch = 1;
 				rs_used = 1;
 				rt_used = 1;
+				op_type = 13;
 			end
 			INST_BNE: begin
 				exe_b_src = EXE_B_IMM;
@@ -191,6 +209,7 @@ module pipeController(
 				is_branch = 1;
 				rs_used = 1;
 				rt_used = 1;
+				op_type = 14;
 			end
 			INST_LW: begin
 				imm_ext = 1;
@@ -201,6 +220,7 @@ module pipeController(
 				wb_data_src = WB_DATA_MEM;
 				wb_wen = 1;
 				rs_used = 1;
+				op_type = 11;
 			end
 			INST_SW: begin
 				imm_ext = 1;
@@ -209,6 +229,7 @@ module pipeController(
 				mem_wen = 1;
 				rs_used = 1;
 				rt_used = 1;
+				op_type = 12;
 			end
 			INST_ADDI: begin
 				imm_ext = 1;
@@ -218,6 +239,7 @@ module pipeController(
 				wb_data_src = WB_DATA_ALU;
 				wb_wen = 1;
 				rs_used = 1;
+				op_type = 8;
 			end
 			INST_ANDI: begin
 				imm_ext = 1;
@@ -227,6 +249,7 @@ module pipeController(
 				wb_data_src = WB_DATA_ALU;
 				wb_wen = 1;
 				rs_used = 1;
+				op_type = 0;
 			end
 			INST_ORI: begin
 				imm_ext = 1;
@@ -236,6 +259,10 @@ module pipeController(
 				wb_data_src = WB_DATA_ALU;
 				wb_wen = 1;
 				rs_used = 1;
+				op_type = 10;
+			end
+			INST_J: begin
+				op_type = 15;
 			end
 			default: begin
 				unrecognized = 1;
@@ -244,6 +271,8 @@ module pipeController(
 	end
 
 	initial begin 
+		ip_rst = 0;
+		ip_en = 1;
 		if_rst = 0;
 		if_en = 1;
 		id_rst = 0;
@@ -257,6 +286,8 @@ module pipeController(
 	end
 	
 	always @(*) begin
+		ip_rst = 0;
+		ip_en = 1;
 		if_rst = 0;
 		if_en = 1;
 		id_rst = 0;
@@ -279,6 +310,19 @@ module pipeController(
 			if_en = 0;
 			id_en = 0;
 			exe_rst = 1;
+		end
+		else if(branch_stall) begin
+			if_en = 0;
+			id_en = 0;
+			id_rst = 1;
+			if_rst = 1;
+			exe_rst = 1;
+			ip_en = 0;
+			mem_rst = 1;
+			mem_en = 0;
+		end
+		else if(single_stall) begin
+			
 		end
 	end
 
