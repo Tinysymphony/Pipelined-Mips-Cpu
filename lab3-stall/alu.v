@@ -25,8 +25,8 @@ input wire[3:0]alu_ctrl,
 output reg zero,
 output reg [31:0]alu_out
 );
-	initial begin zero=0; alu_out=0; end;
-	always@* begin
+	initial begin zero=0; alu_out=0; end
+	always @* begin
 		case(alu_ctrl)
 			4'b0000: alu_out=opa & opb;
 			4'b0001: alu_out=opa | opb;

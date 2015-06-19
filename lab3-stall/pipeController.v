@@ -41,7 +41,7 @@ module pipeController(
 	// pipeline control
 	input wire reg_stall,  // stall signal when LW instruction followed by an related R instruction
 	
-	input wire branch_stall,
+	input wire control_stall,
 	output reg ip_rst,
 	output reg ip_en,
 	
@@ -311,15 +311,15 @@ module pipeController(
 			id_en = 0;
 			exe_rst = 1;
 		end
-		else if(branch_stall) begin
+		else if(control_stall) begin
 			if_en = 0;
 			id_en = 0;
-			id_rst = 1;
-			if_rst = 1;
 			exe_rst = 1;
-			ip_en = 0;
-			mem_rst = 1;
-			mem_en = 0;
+			id_rst = 1;
+			if_rst = 1;	
+			//ip_en = 0;
+			//mem_rst = 1;
+			//mem_en = 0;
 		end
 		else if(single_stall) begin
 			

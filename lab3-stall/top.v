@@ -76,18 +76,14 @@ output [7:0] LED
 	//IF TinyPipeLine
 	wire [31:0]instr_1in,instr_1out;
 	wire [31:0]pc_1in,pc_1out;
-	wire [31:0]pc_in,pc_out;
+	reg [31:0] pc_in;
+	wire [31:0]pc_out;
 	
 	reg [31:0]pc_tmp=0;
 	wire ip_rst,ip_en;
-	reg branch_stall;
+	reg control_stall;
 	
-	//always @(posedge CLK)begin 
-	//	if(ip_rst)
-	//		pc_tmp=0;
-	//	else if(ip_en)
-	//		pc_tmp=pc_in;
-	//end
+	wire [31:0] pc_next_if, pc_next_id, pc_next_exe, pc_next_mem; 
 	
 	IF if_stage(
 		.en(if_en),
@@ -95,10 +91,11 @@ output [7:0] LED
 		.rst(if_rst),
 		.ipc(pc_in), /////
 		.opc(pc_out),
-		.valid(if_valid)
+		.valid(if_valid),
+		.pc_next_out(pc_next_if)
 	);
 	
-	singlePcPlus pcplus0(pc_out,pc_1in); 
+	//singlePcPlus pcplus0(pc_out,pc_1in); 
 
 	//instr_rom  //tmp ~clk
 	IP ip0(
@@ -116,10 +113,12 @@ output [7:0] LED
 		.rst(id_rst),
 		.instr_in(instr_1in),
 		.instr_out(instr_1out),
-		.pc_in(pc_1in),
+		.pc_in(pc_out),
 		.pc_out(pc_1out),
 		.valid_in(if_valid),
-		.valid(id_valid)
+		.valid(id_valid),
+		.pc_next_in(pc_next_if),
+		.pc_next_out(pc_next_id)
 	);
 	
 	//CTRL TinyPipeLine
@@ -156,7 +155,7 @@ output [7:0] LED
 		.wb_rst(wb_rst),
 		.wb_en(wb_en),
 		.wb_valid(wb_valid),
-		.branch_stall(branch_stall),
+		.control_stall(control_stall),
 		.ip_rst(ip_rst),
 		.ip_en(ip_en),
 		.single_stall(single_stall),
@@ -193,8 +192,8 @@ output [7:0] LED
 	end
 	
 	//stall
-	reg AFromExe, BFromExe, AFromMem, BFromMem, SFromAddr;
-	initial begin reg_stall=0; branch_stall=0; single_stall=0; end
+	reg AFromExe, BFromExe, AFromMem, BFromMem, SFromAddr, CFromMem, CFromExe, CFromWb;
+	initial begin reg_stall=0; control_stall=0; single_stall=0; end
 	always @(*) begin
 		reg_stall = 0;
 		AFromExe = rs_used && (reg1 != 0) && (regw_addr_exe == reg1) && wb_wen_exe;
@@ -203,7 +202,10 @@ output [7:0] LED
 		BFromMem = rt_used && (reg2 != 0) && (regw_addr_mem == reg2) && wb_wen_mem;
 		reg_stall = AFromExe || BFromExe || AFromMem || BFromMem ;	
 		single_stall = AFromMem || BFromMem;
-		branch_stall = branchSignal; /////
+		CFromExe = op_type_exe==8'h0D || op_type_exe==8'h0E || op_type_exe==8'h0F;
+		CFromMem = op_type_mem==8'h0D || op_type_mem==8'h0E || op_type_mem==8'h0F;
+		CFromWb = op_type_wb==8'h0D || op_type_wb==8'h0E || op_type_wb==8'h0F;
+		control_stall = CFromExe ;//|| CFromMem ;
 	end
 
 	wire [31:0]sign_ext_2in,sign_ext_2out,zero_ext_2in,zero_ext_2out;
@@ -263,7 +265,9 @@ output [7:0] LED
 		.mem_wen_in(mem_wen),
 		.mem_wen_out(mem_wen_exe),
 		.op_type_in(op_type_id),
-		.op_type_out(op_type_exe)
+		.op_type_out(op_type_exe),
+		.pc_next_in(pc_next_id),
+		.pc_next_out(pc_next_exe)
 	);
 
 	wire [31:0]aluA,aluB,aluOut;
@@ -326,7 +330,9 @@ output [7:0] LED
 		.mem_wen_in(mem_wen_exe),
 		.mem_wen_out(mem_wen_mem),
 		.op_type_in(op_type_exe),
-		.op_type_out(op_type_mem)
+		.op_type_out(op_type_mem),
+		.pc_next_in(pc_next_exe),
+		.pc_next_out(pc_next_mem)
 	);
 	
 	//reg 
@@ -342,6 +348,11 @@ output [7:0] LED
 	assign memWrite=mem_wen_mem;
 	//assign memAddr=opb_id_mem;	
 	assign memAddr=alu_3out;
+	
+	assign jumpSignal=ctrl_3out[6];
+	assign bne=ctrl_3out[5]&&~zero_3out;
+	assign beq=ctrl_3out[4]&&zero_3out;
+	assign branchSignal=beq|bne;
 
 	DATA data0(
 		.clka(~CLK),
@@ -352,6 +363,7 @@ output [7:0] LED
 	);
 
 	//WB TinyPipeLine
+	wire branch_wb;
 	wire[31:0]alu_4out,memdata_4in,memdata_4out;
 	assign memdata_4in=memDataOut;
 	WB wb_stage(
@@ -371,19 +383,27 @@ output [7:0] LED
 		.wb_wen_in(wb_wen_mem),
 		.wb_wen_out(wb_wen_wb),
 		.op_type_in(op_type_mem),
-		.op_type_out(op_type_wb)
+		.op_type_out(op_type_wb),
+		.b_in(branchSignal),
+		.b_out(branch_wb)
 	);
 	assign regAddr = regw_addr_wb;
 	
-	wire [31:0]tmpPc;
-	assign jumpSignal=ctrl_3out[6];
-	assign bne=ctrl_3out[5]&&~zero_3out;
-	assign beq=ctrl_3out[4]&&zero_3out;
-	assign branchSignal=beq|bne;
+	//wire [31:0]tmpPc;
+	
 	mux32 
-		regdata0(alu_4out,memdata_4out,writeRegData,ctrl_4out[1]),
-		branch0(pc_1in,im_pc_3out,tmpPc,branchSignal),
-		jump0(tmpPc,jmp_pc_3out,pc_in,jumpSignal);
+		regdata0(alu_4out,memdata_4out,writeRegData,ctrl_4out[1]);
+		//branch0(pc_next_if, im_pc_3out,tmpPc,branchSignal),
+		//jump0(tmpPc,jmp_pc_3out,pc_in,jumpSignal);
+		
+	always @(*) begin
+		if(CFromMem || CFromExe) begin
+			pc_in = jumpSignal ? jmp_pc_3out : branchSignal ? im_pc_3out : pc_next_mem;
+		end
+		else begin
+			pc_in = pc_next_if;
+		end
+	end	
 
 	//refresh the screen
 	wire clk_refresh;

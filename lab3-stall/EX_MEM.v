@@ -37,7 +37,11 @@ output reg valid,
 input wire mem_wen_in,
 output reg mem_wen_out,
 input wire [31:0] data_rt_in,
-output reg [31:0] data_rt_out
+output reg [31:0] data_rt_out,
+input wire [7:0]op_type_in,
+output reg [7:0]op_type_out,
+input wire [31:0] pc_next_in,
+output reg [31:0] pc_next_out
     );
 	
 	initial begin 
@@ -46,6 +50,8 @@ output reg [31:0] data_rt_out
 		wb_wen_out=0; valid=0;
 		mem_wen_out=0;
 		data_rt_out=0;
+		op_type_out=0;
+		pc_next_out=0;
 	end
 	
 	always @(posedge clk)begin
@@ -62,6 +68,8 @@ output reg [31:0] data_rt_out
 			wb_wen_out=0;
 			mem_wen_out=0;
 			data_rt_out=0;
+			op_type_out=0;
+			pc_next_out=0;
 		end
 		else if(en) begin
 			valid=valid_in;
@@ -76,6 +84,8 @@ output reg [31:0] data_rt_out
 			wb_wen_out=wb_wen_in;
 			mem_wen_out=mem_wen_in;
 			data_rt_out=data_rt_in;
+			op_type_out=op_type_in;
+			pc_next_out=pc_next_in;
 		end
 	end
 	
