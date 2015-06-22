@@ -1,9 +1,9 @@
-##Coumputer Architecture 
+##Coumputer Architecture
 ###MIPS PIPELINED CPU
 
 -----
 
-> ZJU CA 2015 
+> ZJU CA 2015
 
 -----
 
@@ -11,5 +11,7 @@
 
 * Lab2 Pipelined CPU with hazards, using new structure on top & controller.
 
-* Lab3 Pipelined CPU with stalls. 
+* Lab3 Pipelined CPU with stalls. (in a mess)
+
+* Lab4 Pipelined CPU Add forwarding. (using new structure)
 
