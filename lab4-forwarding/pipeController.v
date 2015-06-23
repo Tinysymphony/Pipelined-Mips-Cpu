@@ -23,6 +23,8 @@ module pipeController (
 	input wire clk,  
 	input wire rst, 
 	// instruction decode
+	input wire [1:0] pc_src_id,
+	input wire [1:0] pc_src_exe,
 	input wire [31:0] instr,  // instruction
 	input wire rs_rt_equal,//whether data from rs and rt are equal
 	input wire is_load_exe,//whether instruction in EXE is lw
@@ -312,7 +314,12 @@ module pipeController (
 			end
 
 			INST_BEQ: begin
-				if (rs_rt_equal) pc_src = PC_BRANCH;
+				if (rs_rt_equal) begin
+					pc_src = PC_BRANCH;
+				end
+				else begin
+					pc_src = PC_NOT_BRANCH;
+				end
 				exe_b_src = EXE_B_IMM;
 				imm_ext = 1;
 				rs_used = 1;
@@ -320,7 +327,12 @@ module pipeController (
 				is_branch = 1;
 			end
 			INST_BNE: begin
-				if (!rs_rt_equal) pc_src = PC_BRANCH;
+				if (!rs_rt_equal) begin
+					pc_src = PC_BRANCH;
+				end
+				else begin
+					pc_src = PC_NOT_BRANCH;
+				end
 				exe_b_src = EXE_B_IMM;
 				imm_ext = 1;
 				rs_used = 1;
@@ -423,7 +435,7 @@ module pipeController (
 		end
 
 		// if (is_branch_exe | is_branch_mem | is_jump_exe | is_jump_mem ) begin
-		if (is_branch_exe | is_jump_exe  ) begin
+		if (is_branch_exe | is_jump_exe ) begin
 			control_stall = 1;
 		end
 	end
@@ -457,8 +469,10 @@ module pipeController (
 			id_en = 0;
 			// exe_en = 0;
 			exe_rst = 1;
-			id_rst = 1;
-			// if_rst = 1;	
+			if( pc_src_id == PC_BRANCH )begin
+				id_rst = 1;
+			end
+			//if_rst = 1;	
 		end
 	end
 	

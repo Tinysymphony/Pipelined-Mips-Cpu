@@ -43,6 +43,9 @@ module stages(
     output reg wb_wen_wb,
 
     input wire [1:0] pc_src_ctrl,
+    output reg [1:0] pc_src_id,
+    output reg [1:0] pc_src_exe,
+
 	input wire imm_ext_ctrl,  // whether using sign extended to immediate data
 	input wire exe_a_src_ctrl,
 	input wire [1:0] exe_b_src_ctrl,  // data source of operand B for ALU
@@ -167,6 +170,7 @@ module stages(
 				PC_JUMP: instr_addr <= instr_addr_id[31:26] + instr_data_ctrl[25:0];
 				PC_BRANCH: instr_addr <= instr_addr_next_id + data_imm[31:0];
 				PC_JR:instr_addr <= data_rs_fwd;
+				// PC_NOT_BRANCH: instr_addr <= instr_addr_next ;
 			endcase
 		end
 	end
@@ -178,12 +182,14 @@ module stages(
 			instr_addr_id <= 0;
 			instr_data_ctrl <= 0;
 			instr_addr_next_id <= 0;
+			pc_src_id <= 0;
 		end
 		else if (id_en) begin
 			id_valid <= if_valid;
 			instr_addr_id <= instr_addr;
 			instr_data_ctrl <= instr_data;
 			instr_addr_next_id <= instr_addr_next;
+			pc_src_id <= pc_src_ctrl;
 		end
 	end
 	
@@ -259,6 +265,7 @@ module stages(
 			is_jump_exe <= 0;
 			is_branch_exe <= 0;
 			instr_addr_next_exe <= 0;
+			pc_src_exe <= 0;
 		end
 		else if (exe_en) begin
 			exe_valid <= id_valid;
@@ -282,6 +289,7 @@ module stages(
 			is_store_exe <= is_store_ctrl;
 			is_jump_exe <= is_jump_ctrl;
 			is_branch_exe <= is_branch_ctrl;
+			pc_src_exe <= pc_src_id;
 		end
 	end
 
